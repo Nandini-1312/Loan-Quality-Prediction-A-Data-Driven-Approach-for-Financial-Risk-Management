@@ -1,0 +1,496 @@
+---
+title: "Risk Analysis Project"
+output: html_document
+date: "2024-11-27"
+---
+
+
+
+```{r}
+
+library(readxl)
+
+# fetch training data
+file_path <- "C:/Users/nandi/Documents/Personal/Academics/Final/kaggle/archive/Credit_Risk_Data_Set/train_FIN_ANA_DATA.xls"
+file.exists(file_path)
+
+# Load the data
+financial_train_data <- read_excel(file_path)
+head(financial_train_data)
+
+
+
+dim(financial_train_data)
+##37408 rows and   11 attributes
+
+##preprocessing steps
+
+##identifying na values
+sum(is.na(financial_train_data))
+
+# There are 947 NA values identified in the training dataset
+sum(is.na(financial_train_data$REPAY_MODE))
+
+# INF_MARITAL_STATUS, INF_GENDER, INSTALL_SIZE, COMPENSATION_CHARGED, CLIENT_TYPE
+
+colSums(is.na(financial_train_data))
+
+# Applying Imputation Approach to fill the missing values in the dataset 
+
+# Updating INF_MARITAL_STATUS column NA values
+mode_marital_status <- names(sort(table(financial_train_data$INF_MARITAL_STATUS), decreasing = TRUE))[1]
+financial_train_data$INF_MARITAL_STATUS[is.na(financial_train_data$INF_MARITAL_STATUS)] <- mode_marital_status
+
+
+
+# Updating INF_GENDER column NA values
+mode_INF_GENDER <- names(sort(table(financial_train_data$INF_GENDER), decreasing = TRUE))[1]
+financial_train_data$INF_GENDER[is.na(financial_train_data$INF_GENDER)] <- mode_INF_GENDER
+
+# The following command can be used to study the data set, fetch the unique values in a column
+
+# unique(financial_train_data$INSTALL_SIZE)
+
+
+# Updating COMPENSATION_CHARGED column NA values
+mode_COMPENSATION_CHARGED <- names(sort(table(financial_train_data$COMPENSATION_CHARGED), decreasing = TRUE))[1]
+financial_train_data$COMPENSATION_CHARGED[is.na(financial_train_data$COMPENSATION_CHARGED)] <- mode_COMPENSATION_CHARGED
+
+
+financial_train_data$CLIENT_TYPE[financial_train_data$CLIENT_TYPE == "0"] <- NA
+
+
+#since CLIENT_TYPE has 103 missing values, we can impute the missing values with the consistent distribution available in sample dataset.
+
+distribution <- table(financial_train_data$CLIENT_TYPE, useNA = "no")
+probabilities <- prop.table(distribution)
+set.seed(123)  # For reproducibility
+financial_train_data$CLIENT_TYPE[is.na(financial_train_data$CLIENT_TYPE)] <- sample(
+  names(probabilities),
+  size = sum(is.na(financial_train_data$CLIENT_TYPE)),
+  replace = TRUE,
+  prob = probabilities
+)
+
+
+
+# Updating INSTALL_SIZE column NA values
+# here we are updating the NA values with median of the column, with respecctive of their client type
+
+library(dplyr)
+financial_train_data <- financial_train_data %>%
+  group_by(CLIENT_TYPE) %>%
+  mutate(INSTALL_SIZE = ifelse(is.na(INSTALL_SIZE), 
+                               median(INSTALL_SIZE, na.rm = TRUE), 
+                               INSTALL_SIZE))
+
+# reChecking for NA values
+colSums(is.na(financial_train_data))
+# after imputation there are no NA values for the complete training dataset
+
+
+# head(financial_train_data)
+# colnames(financial_train_data)
+
+
+# fixing the column datatypes, converting factor columns
+
+
+financial_train_data <- financial_train_data %>%
+  mutate(
+    INF_MARITAL_STATUS = as.factor(INF_MARITAL_STATUS),
+    INF_GENDER = as.factor(INF_GENDER),
+    CLIENT_TYPE = as.factor(CLIENT_TYPE),
+    QUALITY_OF_LOAN = as.factor(QUALITY_OF_LOAN),
+    REPAY_MODE = as.factor(REPAY_MODE)
+  )
+
+
+summary(financial_train_data)
+
+# checking for duplicate record - 0 duplicates
+count(financial_train_data)
+count(financial_train_data %>% distinct())
+financial_train_data %>%
+  group_by(ACC_NO) %>%
+  filter(n() > 1)
+
+
+
+```
+```{r}
+
+# Feature Engineering
+
+investment_bins <- c(-Inf, 8.368e+05, 4.365e+06, Inf) 
+investment_labels <- c("Small", "Medium", "Large")
+
+due_payment_bins <- c(-Inf, 0, 1e+06, Inf)  
+due_payment_labels <- c("No Payment Due", "Low Due", "High Due")
+
+install_size_bins <- c(-Inf, 0, 1e+05, Inf)  
+install_size_labels <- c("No Install", "Small", "Large")
+
+account_balance_bins <- c(-Inf, 0, 2.178e+03, 3.416e+05, Inf)  
+account_balance_labels <- c("Zero", "Low", "Moderate", "High")
+
+# Binning INVESTMENT_TOTAL
+financial_train_data$INVESTMENT_BIN <- cut(
+  financial_train_data$INVESTMENT_TOTAL,
+  breaks = investment_bins,
+  labels = investment_labels,
+  right = FALSE
+)
+
+# Binning DUE_PAYMENT
+financial_train_data$DUE_PAYMENT_BIN <- cut(
+  financial_train_data$DUE_PAYMENT,
+  breaks = due_payment_bins,
+  labels = due_payment_labels,
+  right = FALSE
+)
+
+# Binning INSTALL_SIZE
+financial_train_data$INSTALL_SIZE_BIN <- cut(
+  financial_train_data$INSTALL_SIZE,
+  breaks = install_size_bins,
+  labels = install_size_labels,
+  right = FALSE
+)
+
+# Binning ACCCURRENTBALANCE
+financial_train_data$BALANCE_BIN <- cut(
+  financial_train_data$ACCCURRENTBALANCE,
+  breaks = account_balance_bins,
+  labels = account_balance_labels,
+  right = FALSE
+)
+
+# converting Y or N values in COMPENSATION_CHARGED column to 1 and 0 respectively
+
+financial_train_data <- financial_train_data %>%
+  mutate(COMPENSATION_CHARGED = ifelse(COMPENSATION_CHARGED == "Y", 1, 0))
+
+
+summary(financial_train_data[, c("INVESTMENT_BIN", "DUE_PAYMENT_BIN", "INSTALL_SIZE_BIN", "BALANCE_BIN")])
+
+
+# setting  "Rural", "Semi-urban", "Urban"to 1,2,3 numeric levels
+financial_train_data$CLIENT_TYPE <- factor(financial_train_data$CLIENT_TYPE, 
+                                           levels = c("Rural", "Semi-urban", "Urban"))
+
+
+financial_train_data$CLIENT_TYPE <- as.numeric(financial_train_data$CLIENT_TYPE)
+```
+
+
+```{r}
+# Preprocessing test data separately
+
+
+
+# Load the test data
+test_file_path <- "C:/Users/nandi/Documents/Personal/Academics/Final/kaggle/archive/Credit_Risk_Data_Set/test_FIN_ANA_DATA.xls"
+file.exists(test_file_path)
+
+financial_test_data <- read_excel(test_file_path)
+head(financial_test_data)
+
+# Check dimensions of test data
+dim(financial_test_data)
+
+# Checking NA values in test data
+colSums(is.na(financial_test_data))
+
+# === Preprocessing Test Data ===
+
+## INF_MARITAL_STATUS: Impute with mode from training data
+financial_test_data$INF_MARITAL_STATUS[is.na(financial_test_data$INF_MARITAL_STATUS)] <- mode_marital_status
+
+## INF_GENDER: Impute with mode from training data
+financial_test_data$INF_GENDER[is.na(financial_test_data$INF_GENDER)] <- mode_INF_GENDER
+
+## COMPENSATION_CHARGED: Impute with mode from training data
+financial_test_data$COMPENSATION_CHARGED[is.na(financial_test_data$COMPENSATION_CHARGED)] <- mode_COMPENSATION_CHARGED
+
+
+
+## INSTALL_SIZE: Impute missing values with median by CLIENT_TYPE from training data
+financial_test_data <- financial_test_data %>%
+  group_by(CLIENT_TYPE) %>%
+  mutate(INSTALL_SIZE = ifelse(is.na(INSTALL_SIZE), 
+                               median(INSTALL_SIZE, na.rm = TRUE), 
+                               INSTALL_SIZE)) %>%
+  ungroup()
+
+# Recheck for missing values in test data
+colSums(is.na(financial_test_data))
+
+# === Fixing Column Datatypes ===
+financial_test_data <- financial_test_data %>%
+  mutate(
+    INF_MARITAL_STATUS = as.factor(INF_MARITAL_STATUS),
+    INF_GENDER = as.factor(INF_GENDER),
+    CLIENT_TYPE = as.factor(CLIENT_TYPE),
+    QUALITY_OF_LOAN = as.factor(QUALITY_OF_LOAN),
+    REPAY_MODE = as.factor(REPAY_MODE)
+  )
+
+# === Feature Engineering for Test Data ===
+financial_test_data$INVESTMENT_BIN <- cut(
+  financial_test_data$INVESTMENT_TOTAL,
+  breaks = investment_bins,
+  labels = investment_labels,
+  right = FALSE
+)
+
+financial_test_data$DUE_PAYMENT_BIN <- cut(
+  financial_test_data$DUE_PAYMENT,
+  breaks = due_payment_bins,
+  labels = due_payment_labels,
+  right = FALSE
+)
+
+financial_test_data$INSTALL_SIZE_BIN <- cut(
+  financial_test_data$INSTALL_SIZE,
+  breaks = install_size_bins,
+  labels = install_size_labels,
+  right = FALSE
+)
+
+financial_test_data$BALANCE_BIN <- cut(
+  financial_test_data$ACCCURRENTBALANCE,
+  breaks = account_balance_bins,
+  labels = account_balance_labels,
+  right = FALSE
+)
+
+# converting Y or N values in COMPENSATION_CHARGED column to 1 and 0 respectively
+
+financial_test_data <- financial_test_data %>%
+  mutate(COMPENSATION_CHARGED = ifelse(COMPENSATION_CHARGED == "Y", 1, 0))
+
+unique(financial_test_data$CLIENT_TYPE)
+## CLIENT_TYPE: Impute missing values using the high frequency value as test data
+
+frequency_table <- table(financial_test_data$CLIENT_TYPE)
+
+# Get the most frequent category (mode)
+mode_value <- names(frequency_table)[which.max(frequency_table)]
+
+# Replace NA values with the mode
+financial_test_data$CLIENT_TYPE[is.na(financial_test_data$CLIENT_TYPE)] <- mode_value
+
+#
+# setting  "Rural", "Semi-urban", "Urban"to 1,2,3 numeric levels
+financial_test_data$CLIENT_TYPE <- factor(financial_test_data$CLIENT_TYPE, 
+                                           levels = c("Rural", "Semi-Urban", "Urban"))
+
+
+financial_test_data$CLIENT_TYPE <- as.numeric(financial_test_data$CLIENT_TYPE)
+
+# === Summary of Test Data ===
+summary(financial_test_data)
+
+
+```
+
+
+
+```{r}
+#Exploratory Data Analysis
+
+
+# Creating Visualizations to understand the relationships between independent variables and the target variable
+
+# Target variable -  (QUALITY_OF_LOAN).
+
+library(ggplot2)
+ggplot(financial_train_data, aes(x = QUALITY_OF_LOAN, y = INSTALL_SIZE)) +
+  geom_boxplot(fill = "skyblue") +
+  labs(title = "Install Size vs Quality of Loan", x = "Loan Quality", y = "Install Size") +
+  theme_minimal()
+
+
+
+ggplot(financial_train_data, aes(x = CLIENT_TYPE, fill = QUALITY_OF_LOAN)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Client Type vs Quality of Loan", x = "Client Type", y = "Count") +
+  theme_minimal()
+
+
+library(corrplot)
+numeric_data <- financial_train_data %>%
+  select_if(is.numeric)
+# correlation matrix
+cor_matrix <- cor(numeric_data, use = "complete.obs")
+
+# Visualize the correlation matrix
+library(corrplot)
+corrplot(cor_matrix, method = "color", type = "upper", 
+         tl.col = "black", tl.srt = 45, title = "Correlation Matrix")
+
+
+financial_train_data$CLIENT_TYPE <- as.numeric(financial_train_data$CLIENT_TYPE)
+sapply(numeric_data, class)
+summary(financial_train_data)
+head(financial_train_data)
+financial_train_data$QUALITY_OF_LOAN <- ifelse(financial_train_data$QUALITY_OF_LOAN == "G", 1, 0)
+financial_test_data$QUALITY_OF_LOAN <- ifelse(financial_test_data$QUALITY_OF_LOAN == "G", 1, 0)
+
+
+unique(financial_train_data$CLIENT_TYPE)
+
+```
+
+
+```{r}
+head(financial_train_data[,2:15])
+head(financial_test_data)
+
+
+unique(financial_train_data[,2:15])
+unique(financial_test_data[,2:15])
+
+
+
+# predictors column numbers - 4,5,8,9, 11, 12, 13, 14, 15
+# 10 target
+
+selected_data <- financial_train_data[, c(10, 4, 5, 8, 9, 11, 12, 13, 14, 15)]
+library(dplyr)
+pca_train_data <- selected_data %>%
+  mutate(
+    INF_MARITAL_STATUS = recode(INF_MARITAL_STATUS, "M" = 1, "U" = 2, "O" = 3),
+    INF_GENDER = recode(INF_GENDER, "F" = 1, "M" = 2, "O" = 3),
+    REPAY_MODE = recode(REPAY_MODE, "N" = 0, "I" = 1),
+    INVESTMENT_BIN = recode(INVESTMENT_BIN, "Large" = 3, "Medium" = 2, "Small" = 1),
+    DUE_PAYMENT_BIN = recode(DUE_PAYMENT_BIN, "Low Due" = 0, "High Due" = 1),
+    INSTALL_SIZE_BIN = recode(INSTALL_SIZE_BIN, "Small" = 1, "Large" = 2),
+    BALANCE_BIN = recode(BALANCE_BIN, "High" = 3, "Moderate" = 2, "Low" = 1)
+  )
+
+
+x <- pca_train_data[, -1]  # Exclude the target variable
+
+x_scaled <- scale(x)  # Scaling the features
+
+# Perform PCA
+pca <- prcomp(x_scaled, center = TRUE, scale. = TRUE)
+
+# View the proportion of variance explained by each principal component
+summary(pca)
+
+# 87% variance
+selected_components <- pca$x[, 1:7]
+
+final_data <- cbind(selected_components, pca_train_data$QUALITY_OF_LOAN)
+
+final_data = as.data.frame(final_data)
+
+colnames(final_data)[ncol(final_data)] <- "QUALITY_OF_LOAN"
+#  logistic regression model
+log_model <- glm(QUALITY_OF_LOAN ~ ., data = final_data, family = binomial)
+
+```
+
+
+```{r}
+
+test_data <- financial_test_data[, c(4, 5, 8, 9, 11, 12, 13, 14, 15)]
+library(dplyr)
+test_data <- test_data %>%
+  mutate(
+    INF_MARITAL_STATUS = recode(INF_MARITAL_STATUS, "M" = 1, "U" = 2, "O" = 3),
+    INF_GENDER = recode(INF_GENDER, "F" = 1, "M" = 2, "O" = 3),
+    REPAY_MODE = recode(REPAY_MODE, "N" = 0, "I" = 1),
+    INVESTMENT_BIN = recode(INVESTMENT_BIN, "Large" = 3, "Medium" = 2, "Small" = 1),
+    DUE_PAYMENT_BIN = recode(DUE_PAYMENT_BIN, "Low Due" = 0, "High Due" = 1),
+    INSTALL_SIZE_BIN = recode(INSTALL_SIZE_BIN, "Small" = 1, "Large" = 2),
+    BALANCE_BIN = recode(BALANCE_BIN, "High" = 3, "Moderate" = 2, "Low" = 1)
+  )
+test_data = as.data.frame(test_data)
+test_target <- financial_test_data$QUALITY_OF_LOAN
+
+
+test_data_scaled <- scale(test_data)
+test_data_pca <- predict(pca, newdata = test_data_scaled)
+test_data_pca_7 <- test_data_pca[, 1:7]
+test_data_pca_7 = as.data.frame(test_data_pca_7)
+
+predictions_prob <- predict(log_model, newdata = test_data_pca_7, type = "response")
+predictions <- ifelse(predictions_prob > 0.5, 1, 0)
+confusion_matrix <- table(Predicted = predictions, Actual = test_target)
+print(confusion_matrix)
+
+correct_predictions <- sum(predictions == test_target)
+
+accuracy <- correct_predictions / length(test_target)
+
+# Print accuracy
+
+print(paste("Accuracy: ", round(accuracy * 100, 2), "%", sep = ""))
+
+
+
+
+
+```
+```{r}
+# Applying SMOTE
+#install.packages("DMwR2")
+library(DMwR2)
+#install.packages("smotefamily")  
+library(smotefamily) 
+selected_data <- financial_train_data[, c(10, 4, 5, 8, 9, 11, 12, 13, 14, 15)]
+
+# Step 2: Encode categorical variables
+pca_train_data <- selected_data %>%
+  mutate(
+    INF_MARITAL_STATUS = recode(INF_MARITAL_STATUS, "M" = 1, "U" = 2, "O" = 3),
+    INF_GENDER = recode(INF_GENDER, "F" = 1, "M" = 2, "O" = 3),
+    REPAY_MODE = recode(REPAY_MODE, "N" = 0, "I" = 1),
+    INVESTMENT_BIN = recode(INVESTMENT_BIN, "Large" = 3, "Medium" = 2, "Small" = 1),
+    DUE_PAYMENT_BIN = recode(DUE_PAYMENT_BIN, "Low Due" = 0, "High Due" = 1),
+    INSTALL_SIZE_BIN = recode(INSTALL_SIZE_BIN, "Small" = 1, "Large" = 2),
+    BALANCE_BIN = recode(BALANCE_BIN, "High" = 3, "Moderate" = 2, "Low" = 1)
+  )
+x <- pca_train_data[,2:10]   # Exclude target column
+y <- pca_train_data[,1]  
+
+y <- as.factor(y$QUALITY_OF_LOAN)
+
+smote_result <- SMOTE(x, y, K = 5, dup_size = 2) 
+
+smote_x <- smote_result$data[, -ncol(smote_result$data)]  # Remove the last column (class column)
+smote_y <- smote_result$data[, ncol(smote_result$data)] 
+smote_y <- as.factor(smote_y$class)
+smote_x <- smote_x %>%
+  mutate(across(everything(), ~ as.numeric(as.character(.))))
+
+pca <- prcomp(smote_x, center = TRUE, scale. = TRUE)
+smote_x_pca <- predict(pca, newdata = smote_x)
+smote_x_pca_7 <- smote_x_pca[, 1:7] 
+
+smote_x_pca_7 <- as.data.frame(smote_x_pca_7)
+
+log_model_smote <- glm(smote_y ~ ., data = smote_x_pca_7, family = binomial)
+
+predictions_prob_smote <- predict(log_model_smote, newdata = smote_x_pca_7, type = "response")
+predictions_smote <- ifelse(predictions_prob_smote > 0.5, 1, 0)
+
+
+confusion_matrix_smote <- table(Predicted = predictions_smote, Actual = smote_y)
+print(confusion_matrix_smote)
+
+accuracy_smote <- sum(predictions_smote == smote_y) / length(smote_y)
+print(paste("Accuracy: ", round(accuracy_smote * 100, 2), "%", sep = ""))
+
+library(ROCR)
+pred <- prediction(predictions_prob, test_target)
+perf <- performance(pred, "tpr", "fpr")
+plot(perf, col = "blue", main = "ROC Curve")
+auc <- performance(pred, "auc")s
+print(auc@y.values)
+```
+
