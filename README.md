@@ -75,5 +75,9 @@ To predict the quality of loans (Good or Bad) using a supervised machine learnin
      •	PCA was critical in managing computational complexity and avoiding overfitting, especially in the presence of high-dimensional data.
       
       
-  
+**Prerequisites**
+
+  • R programming language
+
+  • Required R packages: readxl, dplyr, ggplot2, corrplot, DMwR2, smotefamily, ROCR
 
