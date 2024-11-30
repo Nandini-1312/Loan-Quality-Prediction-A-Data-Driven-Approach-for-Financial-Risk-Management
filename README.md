@@ -57,13 +57,14 @@ To predict the quality of loans (Good or Bad) using a supervised machine learnin
 
          o	Accuracy alone was insufficient for imbalanced data. Hence ROC curve was used to measure performance:
 
-         ![image](https://github.com/user-attachments/assets/37074b7e-42de-43de-8fee-c88d7d072c29)
+
+      ![image](https://github.com/user-attachments/assets/37074b7e-42de-43de-8fee-c88d7d072c29)
 
 
          The sharp rise in the curve suggests that the model is effectively capturing true positives early on (i.e., it's good at identifying "Good Loans"). The curve remains relatively low along the x-axis, showing that false positives (misclassifying "Bad Loans" as "Good Loans") are minimal, which is important for risk assessment.
 
      
-  5. Insights and Adjustments
+  6. Insights and Adjustments
 
      •	The ROC curve indicates that the model is well-calibrated, the model appears effective in distinguishing between "Good" and "Bad" loans, making it a reliable tool for loan quality prediction.
      
