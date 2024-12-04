@@ -10,7 +10,19 @@ To predict whether a loan will be repaid successfully or is at risk of default u
   
 
 **Implementation**	
+
+
+
   1. Data Preprocessing
+
+     •	Handling Missing Values:
+
+           Imputed missing values in INF_MARITAL_STATUS and INF_GENDER using mode-based imputation.
+   
+          Applied proportional sampling to fill missing values in CLIENT_TYPE, ensuring realistic distributions.
+   
+          Replaced missing values in INSTALL_SIZE using the median grouped by CLIENT_TYPE, retaining consistency within groups
+     
 
      •	Label Encoding: Converted categorical labels (e.g., "default risk" and "successful") into numeric binary values for compatibility with the model.
      
@@ -19,12 +31,12 @@ To predict whether a loan will be repaid successfully or is at risk of default u
      •	Scaling: Standardized the dataset to ensure consistent feature magnitudes for PCA and logistic regression.
      
   
-  2. Feature Engineering
+  3. Feature Engineering
 
-     •  Dimensionality Reduction: Applied Principal Component Analysis (PCA) to reduce the number of predictors while retaining 87% of the variance. This step ensured computational efficiency and     reduced overfitting risks.
+     •  Dimensionality Reduction: Applied Principal Component Analysis (PCA) to reduce the number of predictors while retaining 87% of the variance. This step ensured computational efficiency and  reduced overfitting risks.
 
   
-  3. Handling Class Imbalance
+  4. Handling Class Imbalance
      
 
      •	Initial Model (Imbalanced Dataset):
@@ -39,7 +51,7 @@ To predict whether a loan will be repaid successfully or is at risk of default u
        
           o	Reapplied PCA to maintain reduced dimensionality and prevent overfitting.
      
-  4. Modeling and Evaluation
+  5. Modeling and Evaluation
 
      •	Logistic Regression:
 
@@ -47,8 +59,8 @@ To predict whether a loan will be repaid successfully or is at risk of default u
      
      •	Evaluation Metrics:
 
-         o	Accuracy alone was insufficient for imbalanced data. Hence ROC curve was used to measure performance:
-
+         o	AUC of 0.78 and a well-calibrated ROC curve demonstrated the model’s effectiveness in distinguishing repayment outcomes.
+         o	The ROC curve’s sharp rise highlighted strong identification of true positives (repayment success), while maintaining low false positives for default risk loans, critical for reliable predictions.
       
       ![image](https://github.com/user-attachments/assets/37074b7e-42de-43de-8fee-c88d7d072c29)
 
